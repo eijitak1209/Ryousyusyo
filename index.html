@@ -1,0 +1,117 @@
+<!DOCTYPE html>
+<html>
+<head>
+  <script src="https://cdnjs.cloudflare.com/ajax/libs/jspdf/2.5.1/jspdf.umd.min.js">
+  </script>
+  <script src="https://cdnjs.cloudflare.com/ajax/libs/blueimp-load-image/5.16.0/load-image.all.min.js">
+  </script>
+  <style>
+    body { font-family: sans-serif; padding: 20px; }
+    .controls { background: #f4f4f4; padding: 20px; border-radius: 8px; }
+    input, select { margin: 5px; }
+    #addBtn { padding: 15px; background: orange; cursor: pointer; border: none; width: 100%; font-size: 16px; margin-bottom: 10px; }
+    #generateBtn { padding: 15px; background: blue; color: white; border: none; cursor: pointer; width: 100%; font-size: 16px; }
+  </style>
+</head>
+<body>
+
+  <div class="controls">
+    <h2>領収書PDF作成</h2>
+    <label>向き: </label>
+    <select id="orientation"><option value="p">縦</option><option value="l">横</option></select>
+    <br>
+    <label>横の枚数: </label><input type="number" id="cols" value="2" min="1" max="5">
+    <label>縦の枚数: </label><input type="number" id="rows" value="3" min="1" max="5">
+    
+    <input type="file" id="imageInput" accept="image/*" capture="environment" style="display:none;">
+    
+    <button id="addBtn">📷 カメラで撮影して追加</button>
+    <p id="fileCount">現在の画像枚数: 0枚</p>
+    
+    <textarea id="memoInput" style="width:100%; height:50px;" placeholder="備考"></textarea>
+    <button id="generateBtn">PDFを生成する</button>
+  </div>
+
+  <script>
+    const { jsPDF } = window.jspdf;
+    let collectedImages = [];
+
+    // カメラボタンで隠しinputをクリック
+    document.getElementById('addBtn').addEventListener('click', () => {
+      document.getElementById('imageInput').click();
+    });
+
+    // 撮影/選択されたら配列に保存
+    document.getElementById('imageInput').addEventListener('change', (e) => {
+      if (e.target.files.length > 0) {
+        collectedImages.push(e.target.files[0]);
+        document.getElementById('fileCount').innerText = `現在の画像枚数: ${collectedImages.length}枚`;
+      }
+    });
+
+    // PDF生成処理
+    document.getElementById('generateBtn').addEventListener('click', async () => {
+      if (collectedImages.length === 0) return alert("画像を撮影してください");
+
+      const memo = document.getElementById('memoInput').value;
+      const orientation = document.getElementById('orientation').value;
+      const cols = parseInt(document.getElementById('cols').value);
+      const rows = parseInt(document.getElementById('rows').value);
+      const cellsPerPage = cols * rows;
+
+      const doc = new jsPDF(orientation, 'mm', 'a4');
+      const pageWidth = orientation === 'p' ? 210 : 297;
+      const pageHeight = orientation === 'p' ? 297 : 210;
+
+      const addHeader = () => {
+        if (memo) {
+          const textCanvas = document.createElement('canvas');
+          textCanvas.width = 800; textCanvas.height = 100;
+          const ctx = textCanvas.getContext('2d');
+          ctx.font = '40px sans-serif';
+          ctx.fillText(memo, 10, 50);
+          doc.addImage(textCanvas.toDataURL('image/png'), 'PNG', 10, 10, 100, 12);
+        }
+      };
+
+      addHeader();
+
+      for (let i = 0; i < collectedImages.length; i++) {
+        if (i > 0 && i % cellsPerPage === 0) {
+          doc.addPage();
+          addHeader();
+        }
+        
+        const imgData = await loadImage(collectedImages[i]);
+        const indexOnPage = i % cellsPerPage;
+        const colIdx = indexOnPage % cols;
+        const rowIdx = Math.floor(indexOnPage / cols);
+        
+        const startY = 25;
+        const cellW = (pageWidth - 20) / cols;
+        const cellH = (pageHeight - startY - 10) / rows;
+        
+        const ratio = Math.min((cellW - 5) / imgData.width, (cellH - 5) / imgData.height);
+        const w = imgData.width * ratio;
+        const h = imgData.height * ratio;
+        
+        const xPos = 10 + (colIdx * cellW) + (cellW - w) / 2;
+        const yPos = startY + (rowIdx * cellH) + (cellH - h) / 2;
+        
+        doc.addImage(imgData.src, 'JPEG', xPos, yPos, w, h);
+      }
+      doc.save("receipt.pdf");
+    });
+
+    function loadImage(file) {
+      return new Promise((r) => {
+        const img = new Image();
+        img.onload = () => r({src: img.src, width: img.width, height: img.height});
+        const reader = new FileReader();
+        reader.onload = (e) => { img.src = e.target.result; };
+        reader.readAsDataURL(file);
+      });
+    }
+  </script>
+</body>
+</html>

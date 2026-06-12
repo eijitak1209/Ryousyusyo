@@ -1,0 +1,3 @@
+.container { padding: 20px; font-family: sans-serif; }
+textarea { width: 100%; height: 100px; margin: 10px 0; display: block; }
+button { padding: 10px 20px; background: #007bff; color: white; border: none; cursor: pointer; }
